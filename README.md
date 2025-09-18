@@ -1,36 +1,119 @@
 ## CEP Dynamic Traffic Signal – YOLO + SORT + ESP32
 
-This project calculates vehicle density in a polygonal region of a traffic video using YOLOv8 + SORT, dynamically adjusts the green-light duration based on density, and sends timing updates to an ESP32. The ESP32 controls three LEDs (Red/Yellow/Green) and a 16x2 I2C LCD to display the active light, countdown, and total time saved.
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/) [![Platform](https://img.shields.io/badge/OS-Windows-blue)](https://www.microsoft.com/windows/) [![YOLOv8](https://img.shields.io/badge/YOLOv8-ultralytics-00A67E)](https://github.com/ultralytics/ultralytics)
+
+This project analyzes vehicle density in a polygonal region of a traffic video using YOLOv8 + SORT, dynamically adjusts the green-light duration, and sends timing updates to an ESP32 that drives three LEDs and a 16x2 I²C LCD.
 
 ### Key Features
-- YOLOv8 + SORT detect/track vehicles in a masked polygon region
-- 5s sliding-average density drives dynamic green-time reduction after an initial 10s window
-- Green duration bounded to 30–90 seconds; total time saved is accumulated
+- YOLOv8 + SORT detect/track vehicles inside a masked polygon
+- 5s sliding-average density drives dynamic green-time reduction after the first 10s
+- Green duration clamped to 30–90 seconds; total time saved is accumulated
 - Serial messages to ESP32 control LEDs and LCD countdown display
+
+---
+
+## Table of Contents
+- [Quick Start](#quick-start)
+- [Repository Structure](#repository-structure)
+- [Run with Your Own Video](#run-with-your-own-video)
+- [Configuration](#configuration)
+- [How It Works](#how-it-works)
+- [ESP32: Wiring & Flashing](#esp32-wiring--flashing)
+- [Troubleshooting](#troubleshooting)
+- [FAQ](#faq)
+- [License](#license)
+
+---
+
+## Quick Start
+
+Copy–paste these commands on Windows (PowerShell):
+
+```powershell
+# 1) Create and activate a virtual environment (optional)
+python -m venv myenv
+myenv\Scripts\Activate.ps1
+
+# 2) Install requirements
+pip install -r requirements.txt
+
+# 3) Set your ESP32 COM port in main.py (e.g., 'COM3')
+#    Then run the app
+python main.py
+```
+
+Controls: Press `q` in the OpenCV window to quit.
+
+Interactive checklist:
+- [ ] Place `video.mp4` and `mask.png` in the project root
+- [ ] Update `SERIAL_PORT` in `main.py` to your COM port (e.g., `COM3`)
+- [ ] Flash the ESP32 with `esp32_traffic_controller.ino`
+- [ ] Watch LEDs/LCD reflect dynamic timing
 
 ---
 
 ## Repository Structure
 - `main.py` – Video analytics brain (YOLO + SORT + density + dynamic timing + Serial)
 - `esp32_traffic_controller.ino` – ESP32 firmware for LEDs and LCD countdown
-- `mask.png` – Region of interest mask (same size as the video frame after resizing)
+- `mask.png` – ROI mask (same size as the video frame after resizing)
 - `video.mp4` – Input traffic video
-- `yolov8l.pt` / `yolov8n.pt` – YOLO models (you can choose one; `main.py` uses `yolov8l.pt`)
+- `yolov8l.pt` / `yolov8n.pt` – YOLO models (`main.py` defaults to `yolov8l.pt`)
 - `requirements.txt` – Python dependencies (includes `pyserial`)
 - `sort.py` – SORT tracker implementation
+- `how_to_do.md` – Expanded ESP32 setup guide
 
 ---
 
-## Hardware Required
-- ESP32 Dev Board (e.g., ESP32-DevKitC, NodeMCU-32S)
-- 3× LEDs (Red, Yellow, Green) + 3× resistors (220–330 Ω)
-- 16x2 LCD with I2C backpack (typical address `0x27`)
-- Breadboard + jumper wires
-- USB cable for ESP32
+## Run with Your Own Video
+1) Replace `video.mp4` with your clip, or edit the video path in `main.py`.
+
+2) Update the ROI polygon if needed. In `main.py`, set `polygon_points` to outline your region of interest. A starter `mask.png` is included and auto-resized to the frame.
+
+3) Performance tips:
+- Prefer `yolov8n.pt` for lower-end CPUs/GPUs
+- Reduce input resolution or process every Nth frame if needed
 
 ---
 
-## Wiring (ESP32)
+## Configuration
+
+Python (`main.py`):
+
+| Setting | Description | Example |
+| --- | --- | --- |
+| `SERIAL_PORT` | COM port to ESP32 | `COM3` |
+| `SERIAL_BAUD` | Serial baud; must match Arduino code | `115200` |
+| `polygon_points` | ROI polygon vertices | list of `(x, y)` |
+| Model | Choose model path | `yolov8l.pt` or `yolov8n.pt` |
+| Timing init | Yellow/Red during controller init | `DynamicTimingController(yellow_seconds=5, red_seconds=60)` |
+
+ESP32 (`esp32_traffic_controller.ino`):
+- LED pins: `PIN_RED`, `PIN_YELLOW`, `PIN_GREEN`
+- LCD I²C address: `0x27` (change if needed)
+
+---
+
+## How It Works
+1. Python reads frames from `video.mp4`, applies `mask.png`, and runs YOLOv8 detections.
+2. SORT tracker stabilizes detections; overlap with the polygon provides a density signal.
+3. A 5-second sliding average density is computed.
+4. Dynamic green logic:
+   - Start at 90s green
+   - First 10s: observe only
+   - Every 5s: reduce remaining green time by 40% (density < 0.3), by 25% (0.4–0.6), or not at all (≥ 0.7)
+   - Clamp green to 30–90s and accumulate time saved
+5. On updates/phase changes, Python sends a Serial line to ESP32:
+
+```
+GREEN:<g>,RED:<r>,YELLOW:<y>,SAVED:<s>
+```
+
+---
+
+## ESP32: Wiring & Flashing
+
+<details>
+<summary><strong>Wiring (click to expand)</strong></summary>
 
 ### LED Connections
 - Red LED anode → ESP32 `GPIO 26` through 220–330 Ω resistor
@@ -38,7 +121,7 @@ This project calculates vehicle density in a polygonal region of a traffic video
 - Green LED anode → ESP32 `GPIO 33` through 220–330 Ω resistor
 - All LED cathodes → GND
 
-Pins used (changeable in `esp32_traffic_controller.ino`):
+Pins used (editable in `esp32_traffic_controller.ino`):
 - `PIN_RED = 26`
 - `PIN_YELLOW = 25`
 - `PIN_GREEN = 33`
@@ -51,126 +134,83 @@ Pins used (changeable in `esp32_traffic_controller.ino`):
 
 Default I²C address in code: `0x27`.
 
-If your LCD does not show text, scan the I²C bus (e.g., with an Arduino I2C scanner sketch) and update the address in:
+If your LCD does not show text, scan the I²C bus and update:
+
 ```
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 ```
 
 Power notes:
-- ESP32 5V pin can power the LCD backpack; ensure common GND between ESP32 and peripherals.
-- Do not exceed ESP32 GPIO current limits; use resistors with LEDs.
+- ESP32 5V pin can power the LCD backpack; ensure common GND
+- Use resistors with LEDs to limit current
 
----
+</details>
 
-## How the System Works
-1. Python reads frames from `video.mp4`, applies `mask.png` and runs YOLOv8 detections.
-2. SORT tracker stabilizes detections; intersection area between tracked boxes and polygon gives density.
-3. A 5-second sliding average density is computed continuously.
-4. Dynamic green logic:
-   - Start green at 90s.
-   - First 10s: no change, only measure density.
-   - Every 5s thereafter:
-     - If density < 0.3 → reduce remaining green time by 40%.
-     - If 0.4 ≤ density ≤ 0.6 → reduce remaining green time by 25%.
-     - If density ≥ 0.7 → no reduction.
-   - Clamp total green between 30–90s.
-   - After RED ends, add (90 − actual_green) to total saved.
-5. Python sends timing to ESP32 via Serial whenever green changes, and on each phase change.
-6. ESP32 drives LEDs and shows countdown + total saved on LCD.
+<details>
+<summary><strong>Flashing the ESP32 (click to expand)</strong></summary>
 
-Serial message format (one line, newline-terminated):
-```
-GREEN:<g>,RED:<r>,YELLOW:<y>,SAVED:<s>
-```
-Where `<g>`, `<r>`, `<y>`, `<s>` are integer seconds.
+1. Open `esp32_traffic_controller.ino` in Arduino IDE (or PlatformIO)
+2. Select board (e.g., “ESP32 Dev Module”)
+3. Select the correct COM port
+4. Upload
+5. Start `python main.py` and watch the LCD/LEDs follow the dynamic timing
 
----
+For a step-by-step, see `how_to_do.md`.
 
-## Software Setup (Windows, venv recommended)
-1. Create/activate venv (optional but recommended):
-```
-python -m venv myenv
-myenv\Scripts\activate
-```
-2. Install requirements:
-```
-pip install -r requirements.txt
-```
-3. Place `video.mp4` and `mask.png` in the project root (already present). Ensure the path in `main.py` points to your video.
-4. Connect the ESP32 via USB. Find its COM port in Device Manager (e.g., `COM3`).
-5. In `main.py`, set:
-```
-SERIAL_PORT = 'COM3'
-```
-6. Run Python:
-```
-python main.py
-```
-Press `q` in the OpenCV window to quit.
-
----
-
-## Flashing the ESP32
-1. Open `esp32_traffic_controller.ino` in the Arduino IDE (or PlatformIO).
-2. Board: select your ESP32 variant (e.g., “ESP32 Dev Module”).
-3. Port: select the COM port identified earlier.
-4. Upload the sketch.
-5. With the ESP32 running, start `main.py`. It will send timing lines over Serial.
-
-LCD should show the phase and countdown; LEDs will match the phase.
-
----
-
-## Configuration
-Python (`main.py`):
-- `SERIAL_PORT` – COM port to ESP32 (e.g., `COM3`).
-- `SERIAL_BAUD` – default 115200; must match Arduino code.
-- `polygon_points` – edit to change ROI polygon.
-- `yolov8l.pt` – switch to `yolov8n.pt` for speed if needed.
-- Yellow and Red durations for controller initialization: `DynamicTimingController(yellow_seconds=5, red_seconds=60)`.
-
-ESP32 (`esp32_traffic_controller.ino`):
-- LED pins: `PIN_RED`, `PIN_YELLOW`, `PIN_GREEN`.
-- LCD I2C address: `0x27` (change if needed).
+</details>
 
 ---
 
 ## Troubleshooting
-- No LCD text:
-  - Verify SDA/SCL wiring (GPIO 21/22), power, contrast pot on backpack.
-  - Scan I²C address and update `0x27` if different.
-- LEDs never change:
-  - Check pin numbers and wiring; ensure resistors are used.
-  - Serial baud mismatch (set both Python and ESP32 to 115200).
-- Python cannot open serial port:
-  - Update `SERIAL_PORT` in `main.py`.
-  - Close any serial monitor in Arduino IDE while Python runs.
-- YOLO performance too slow:
-  - Use `yolov8n.pt` instead of `yolov8l.pt`.
-  - Lower input resolution or skip frames.
-- Mask/ROI misaligned:
-  - Ensure `mask.png` gets resized to the video’s frame size (handled in `main.py`).
-  - Adjust `polygon_points` to match your region of interest.
+
+<details>
+<summary><strong>LCD issues</strong></summary>
+
+- Nothing on LCD: check SDA/SCL (GPIO 21/22), power, contrast, I²C address
+- Garbled text: try the alternate LiquidCrystal I2C library; confirm `(16, 2)`
+
+</details>
+
+<details>
+<summary><strong>LEDs/Serial</strong></summary>
+
+- LEDs never change: verify pins/wiring; ensure resistors are present
+- Serial conflicts: close Arduino Serial Monitor while running Python; match baud 115200
+- Python cannot open port: fix `SERIAL_PORT` in `main.py`, install drivers
+
+</details>
+
+<details>
+<summary><strong>Performance/ROI</strong></summary>
+
+- Use `yolov8n.pt` for faster inference
+- Lower resolution or skip frames
+- Ensure `mask.png` matches frame size (auto-resized in `main.py`)
+- Adjust `polygon_points` to match your ROI
+
+</details>
 
 ---
 
 ## FAQ
-**Q:** Can I change the rule thresholds?  
-**A:** Yes. Update the logic in `DynamicTimingController.maybe_apply_rules` in `main.py`.
+**Q:** Can I change rule thresholds?
 
-**Q:** Does ESP32 decide timings?  
-**A:** No. ESP32 only displays and enforces the countdown sent by Python.
+**A:** Yes—update `DynamicTimingController.maybe_apply_rules` in `main.py`.
 
-**Q:** Can I run without the ESP32?  
-**A:** Yes. If `pyserial` or the port is unavailable, Python will print messages and skip writing to Serial.
+**Q:** Does the ESP32 decide timings?
 
-**Q:** Where do I see density metrics?  
-**A:** The OpenCV window overlays live density, 5s average, phase, remaining green, and total saved.
+**A:** No. ESP32 enforces and displays timings sent by Python.
+
+**Q:** Can I run without the ESP32?
+
+**A:** Yes. If `pyserial`/port is unavailable, Python will print and skip Serial writes.
+
+**Q:** Where do I see density metrics?
+
+**A:** The OpenCV window overlays density (live and 5s avg), phase, remaining green, and total saved.
 
 ---
 
 ## License
 For academic/educational use. Models (YOLO) are under their respective licenses.
 
-
-# Smart-Traffic-Flow-Analyzer
