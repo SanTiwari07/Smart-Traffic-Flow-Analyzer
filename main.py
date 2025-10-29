@@ -6,12 +6,27 @@ import math
 from sort import*
 import time
 import threading
+import socket
+import os
+from future_scope.config_loader import load_runtime_config, get_config_value, get_polygon_from_config
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 try:
     import serial
 except ImportError:
     serial = None
 
-cap = cv2.VideoCapture("C:/Users/sansk/Desktop/CEP_Dynamic_Traffic_Signal/video.mp4")
+# Load runtime config (optional)
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "future_scope", "config.json")
+_cfg = load_runtime_config(CONFIG_PATH)
+
+# Video source
+_video_path_default = "D:/Projects/CEP_Dynamic_Traffic_Signal/video.mp4"
+video_path = get_config_value(_cfg, ["video_path"], _video_path_default)
+cap = cv2.VideoCapture(video_path)
 
 model = YOLO("yolov8l.pt")
 
@@ -33,9 +48,9 @@ vehicle_classes = ["car", "bus", "truck", "motorcycle"]
 # Serial configuration (ESP32)
 # -----------------------------
 # Set the COM port for your ESP32 (check Device Manager). Example: 'COM3' on Windows, '/dev/ttyUSB0' on Linux
-SERIAL_PORT = 'COM3'
-SERIAL_BAUD = 115200
-SERIAL_TIMEOUT = 0.1
+SERIAL_PORT = get_config_value(_cfg, ["serial", "port"], 'COM3')
+SERIAL_BAUD = int(get_config_value(_cfg, ["serial", "baud"], 115200))
+SERIAL_TIMEOUT = float(get_config_value(_cfg, ["serial", "timeout"], 0.1))
 
 def open_serial() -> "serial.Serial | None":
     if serial is None:
@@ -60,7 +75,32 @@ def send_to_esp32(ser, green_s: int, red_s: int, yellow_s: int, saved_s: int):
     # Also print for debugging/visibility
     print(f"-> ESP32 {payload.strip()}")
 
-mask = cv2.imread("C:/Users/sansk/Desktop/CEP_Dynamic_Traffic_Signal/mask.png")
+# -----------------------------
+# Wi-Fi TCP configuration (ESP32)
+# -----------------------------
+# IMPORTANT: Set to your ESP32's IP and listening port (can be overridden by .env)
+ESP32_IP = get_config_value(_cfg, ["esp32", "ip"], os.getenv("ESP32_IP", "10.84.30.1"))
+ESP32_PORT = int(get_config_value(_cfg, ["esp32", "port"], int(os.getenv("ESP32_PORT", "80"))))
+
+# Optional: Load Wi-Fi creds (useful for tools or documentation); ESP32 uses these in its firmware
+WIFI_SSID = os.getenv("WIFI_SSID", "")
+WIFI_PASSWORD = os.getenv("WIFI_PASSWORD", "")
+
+def send_command_to_esp32(command: str) -> bool:
+    message = command + "\n"
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(1.5)
+            s.connect((ESP32_IP, ESP32_PORT))
+            s.sendall(message.encode('utf-8'))
+            return True
+    except Exception as e:
+        print(f"TCP send failed to {ESP32_IP}:{ESP32_PORT} -> {command} ({e})")
+        return False
+
+_mask_path_default = "D:/Projects/CEP_Dynamic_Traffic_Signal/mask.png"
+mask_path = get_config_value(_cfg, ["mask_path"], _mask_path_default)
+mask = cv2.imread(mask_path)
 
 success, img = cap.read()
 if not success:
@@ -75,7 +115,9 @@ cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
 tracker = Sort(max_age=20, min_hits=3, iou_threshold=0.3)
 
-polygon_points = np.array([[589, 206], [417, 539], [1275, 539], [874, 209]], np.int32)
+_default_polygon = [(589, 206), (417, 539), (1275, 539), (874, 209)]
+_poly = get_polygon_from_config(_cfg, _default_polygon)
+polygon_points = np.array(_poly, np.int32)
 
 density_history = []
 fps_estimate = 30 
@@ -233,7 +275,8 @@ send_to_esp32(
     saved_s=int(round(controller.total_saved))
 )
 
-last_sent_second = -1
+last_sent_phase = None
+last_sent_second = None
 
 while True:
     success, img = cap.read()
@@ -329,6 +372,9 @@ while True:
     if controller.phase != prev_phase:
         # On phase changes, notify ESP32 of the upcoming durations
         info = controller.get_phase_and_times()
+        # Force next display update send
+        last_sent_phase = None
+        last_sent_second = None
         if controller.phase == 'GREEN':
             # New cycle begins; include accumulated saved time
             send_to_esp32(
@@ -355,6 +401,32 @@ while True:
                 saved_s=int(round(controller.total_saved))
             )
     
+    # -----------------------------
+    # Per-second display updates over Wi-Fi (A/C/B format)
+    # -----------------------------
+    now_ts = time.time()
+    phase = controller.phase
+    code = None
+    seconds_left = 0
+    if phase == 'GREEN':
+        code = 'C'
+        seconds_left = int(round(controller.get_remaining_green()))
+    elif phase == 'YELLOW':
+        code = 'B'
+        elapsed = now_ts - controller.phase_start_time
+        seconds_left = int(round(max(0.0, controller.yellow_total - elapsed)))
+    elif phase == 'RED':
+        code = 'A'
+        elapsed = now_ts - controller.phase_start_time
+        seconds_left = int(round(max(0.0, controller.red_total - elapsed)))
+
+    if code is not None:
+        if phase != last_sent_phase or seconds_left != last_sent_second:
+            cmd = f"{code}{seconds_left}"
+            ok = send_command_to_esp32(cmd)
+            if ok:
+                last_sent_phase = phase
+                last_sent_second = seconds_left
 
     y_offset = 30
     line_height = 35
@@ -375,9 +447,9 @@ while True:
     cv2.putText(img, avg_density_text, (img.shape[1] - text_size[0] - 20, y_offset + 2*line_height), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
 
-    # Overlay current phase and remaining time
-    phase_info = controller.get_phase_and_times()
-    phase_text = f"Phase: {phase_info['phase']} | GreenLeft: {phase_info['remaining_green']}s | Saved: {phase_info['total_saved']}s"
+    # Overlay current phase and remaining time (per current phase)
+    current_left = max(0, int(seconds_left)) if 'seconds_left' in locals() else 0
+    phase_text = f"Phase: {phase} | Left: {current_left}s | Saved: {int(round(controller.total_saved))}s"
     text_size = cv2.getTextSize(phase_text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0]
     cv2.putText(img, phase_text, (img.shape[1] - text_size[0] - 20, y_offset + 3*line_height), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 165, 255), 2)

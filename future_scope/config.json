@@ -1,0 +1,15 @@
+{
+  "video_path": "D:/Projects/CEP_Dynamic_Traffic_Signal/video.mp4",
+  "mask_path": "D:/Projects/CEP_Dynamic_Traffic_Signal/mask.png",
+  "polygon_points": [[589, 206], [417, 539], [1275, 539], [874, 209]],
+  "serial": {
+    "port": "COM3",
+    "baud": 115200,
+    "timeout": 0.1
+  },
+  "esp32": {
+    "ip": "192.168.85.1",
+    "port": 80
+  }
+}
+
