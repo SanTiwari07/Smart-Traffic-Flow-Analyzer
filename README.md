@@ -27,7 +27,12 @@ We use OpenCV + YOLOv8 to detect and track vehicles inside a region of interest 
 - [How It Works](#how-it-works)
 - [ESP32: Wiring & TCP](#esp32-wiring--tcp)
 - [Troubleshooting](#troubleshooting)
+- [Images](#images)
+- [Video](#video)
+- [Future Scope](#future-scope)
 - [License](#license)
+- [Contributing](#contributing)
+- [Contact](#contact)
 
 ---
 
