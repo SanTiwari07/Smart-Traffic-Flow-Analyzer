@@ -209,6 +209,16 @@ Use `esp32_traffic_controller/tcp_test_sender.py` to manually send `A60/B5/C42` 
   - Adjust `polygon_points` in `config.json` to match your actual ROI
 
 ---
+## Images
+
+![1](https://github.com/user-attachments/assets/038c257d-7192-49f8-b5b3-74eefa3576b9)
+![3](https://github.com/user-attachments/assets/a848f502-9981-404d-86c6-318361dd2e40)
+![4](https://github.com/user-attachments/assets/6f45c1e1-c681-4c3b-8445-28fc2be57c01)
+<img width="1597" height="892" alt="2" src="https://github.com/user-attachments/assets/3257ea0f-774b-48f9-87bf-49ac9c968ab7" />
+![6](https://github.com/user-attachments/assets/73fed9e3-9990-41c2-b976-c7fd7d9d3caa)
+<img width="1425" height="822" alt="0" src="https://github.com/user-attachments/assets/52ec57b0-44ea-46f7-98f8-4ea1dbb43acf" />
+
+---
 ## Video
 
 
