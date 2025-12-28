@@ -24,13 +24,11 @@ We utilize computer vision techniques (OpenCV and YOLOv8) to detect and track ve
 - [Configuration](#configuration)
 - [System Architecture](#system-architecture)
 - [Hardware Integration](#hardware-integration)
-- [Troubleshooting](#troubleshooting)
-- [Images](#images)
-- [Video](#video)
+- [Project Demo](#project-demo)
 - [Future Scope](#future-scope)
-- [License](#license)
+- [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
-- [Contact](#contact)
+- [License](#license)
 
 ---
 
@@ -173,6 +171,41 @@ python firmware/tcp_test_sender.py
 
 ---
 
+## Project Demo
+
+### Video Demonstration
+[View Demo Video](https://github.com/user-attachments/assets/41fd3e41-b301-4d04-ba95-9b60ef2c781a)
+
+### Screenshots
+| System View | Detection Output |
+|:---:|:---:|
+| <img src="https://github.com/user-attachments/assets/038c257d-7192-49f8-b5b3-74eefa3576b9" width="400" alt="System View"> | <img src="https://github.com/user-attachments/assets/a848f502-9981-404d-86c6-318361dd2e40" width="400" alt="Detection Output"> |
+
+| Analysis | Real-time Tracking |
+|:---:|:---:|
+| <img src="https://github.com/user-attachments/assets/6f45c1e1-c681-4c3b-8445-28fc2be57c01" width="400" alt="Analysis"> | <img src="https://github.com/user-attachments/assets/3257ea0f-774b-48f9-87bf-49ac9c968ab7" width="400" alt="Tracking"> |
+
+<details>
+<summary><strong>More Images</strong></summary>
+
+<img src="https://github.com/user-attachments/assets/73fed9e3-9990-41c2-b976-c7fd7d9d3caa" width="600" alt="Additional 1">
+<img src="https://github.com/user-attachments/assets/52ec57b0-44ea-46f7-98f8-4ea1dbb43acf" width="600" alt="Additional 2">
+
+</details>
+
+[Back to Top](#cep-dynamic-traffic-signal-system)
+
+---
+
+## Future Scope
+- **Interactive ROI Tool**: Draw/edit the polygon on a frame and auto-save to `config.json`.
+- **Multiple ROIs**: Support for multiple regions of interest with per-ROI weighting.
+- **Configuration Formats**: Optional YAML/TOML configs with profile selection.
+- **Advanced Analytics**: Historical data logging and traffic pattern analysis.
+- **Multi-intersection Coordination**: Synchronize timing across multiple intersections.
+
+---
+
 ## Troubleshooting
 
 <details>
@@ -184,66 +217,17 @@ python firmware/tcp_test_sender.py
 
 </details>
 
-<<<<<<< HEAD
-- **Slow inference**: Use `yolov8n.pt` for faster processing
-- **High CPU usage**: Lower video resolution or skip frames
-- **ROI mismatch**: 
-  - Ensure `mask.png` matches frame size (auto-resized in `main.py`)
-  - Adjust `polygon_points` in `config.json` to match your actual ROI
-
----
-## Images
-
-![1](https://github.com/user-attachments/assets/038c257d-7192-49f8-b5b3-74eefa3576b9)
-![3](https://github.com/user-attachments/assets/a848f502-9981-404d-86c6-318361dd2e40)
-![4](https://github.com/user-attachments/assets/6f45c1e1-c681-4c3b-8445-28fc2be57c01)
-<img width="1597" height="892" alt="2" src="https://github.com/user-attachments/assets/3257ea0f-774b-48f9-87bf-49ac9c968ab7" />
-![6](https://github.com/user-attachments/assets/73fed9e3-9990-41c2-b976-c7fd7d9d3caa)
-<img width="1425" height="822" alt="0" src="https://github.com/user-attachments/assets/52ec57b0-44ea-46f7-98f8-4ea1dbb43acf" />
-
----
-## Video
-
-
-
-https://github.com/user-attachments/assets/41fd3e41-b301-4d04-ba95-9b60ef2c781a
-
-
-
----
-
-
-## Future Scope
-
-### Planned Enhancements
-
-- **Interactive ROI Tool**: Draw/edit the polygon on a frame and auto-save to `config.json`
-- **Multiple ROIs**: Support for multiple regions of interest with per-ROI weighting
-- **Configuration Formats**: Optional YAML/TOML configs with profile selection (e.g., `intersection_A.json` vs `intersection_B.json`)
-- **Advanced Analytics**: Historical data logging and traffic pattern analysis
-- **Multi-intersection Coordination**: Synchronize timing across multiple intersections
-=======
 [Back to Top](#cep-dynamic-traffic-signal-system)
->>>>>>> 56bf2a6 (cleanup project structure and remove invalid path)
-
----
-
-## License
-<<<<<<< HEAD
-
-For academic/educational use only. YOLO models are subject to their respective licenses from Ultralytics.
 
 ---
 
 ## Contributing
-
 Contributions are welcome! Please feel free to submit issues or pull requests.
+
+## Contact
+For questions or support, please open an issue in the repository.
 
 ---
 
-## Contact
-
-For questions or support, please open an issue in the repository.
-=======
+## License
 This project is for educational and academic purposes. YOLOv8 is subject to Ultralytics' licensing terms.
->>>>>>> 56bf2a6 (cleanup project structure and remove invalid path)
