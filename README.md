@@ -1,31 +1,29 @@
-# CEP Dynamic Traffic Signal – YOLO + SORT + ESP32
+# CEP Dynamic Traffic Signal System
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Platform](https://img.shields.io/badge/OS-Windows-blue)](https://www.microsoft.com/windows/)
-[![YOLOv8](https://img.shields.io/badge/YOLOv8-ultralytics-00A67E)](https://github.com/ultralytics/ultralytics)
+This project implements a dynamic traffic signal control system using YOLOv8 for vehicle detection and SORT for tracking. It adjusts traffic signal timings in real-time based on vehicle density within a specified region of interest (ROI) and communicates with an ESP32 microcontroller for signal display.
 
 ## Overview
 
 ### The Problem
-Conventional traffic signals often run fixed-time plans and are not responsive to real-time vehicle load. This can cause long waits on low-demand approaches and wasted green time, reducing throughput and increasing congestion.
+Conventional traffic signals typically operate on fixed-timing plans, which do not account for real-time fluctuations in traffic volume. This often leads to inefficient green light usage, increased wait times during low-demand periods, and unnecessary congestion.
 
 ### Our Approach
-We use OpenCV + YOLOv8 to detect and track vehicles inside a region of interest (ROI). A short sliding-window density signal drives a dynamic timing controller that reduces the remaining green phase when demand is low, within safe bounds. Per-second countdown updates are sent to an ESP32 over TCP for display/LED control.
+We utilize computer vision techniques (OpenCV and YOLOv8) to detect and track vehicles in a defined ROI. A density-based algorithm, using a sliding window average, dynamically adjusts the remaining green phase duration. The system ensures safety by adhering to minimum and maximum green time bounds. Real-time signal status is transmitted to an ESP32 via TCP for physical LED control.
 
 ### Key Features
-- **YOLOv8 + SORT**: Detect and track vehicles inside an ROI (masked polygon)
-- **Dynamic Timing**: 5-second sliding-average density adjusts remaining green time after the first 10 seconds
-- **Safe Bounds**: Green is clamped between 30–90 seconds and total time saved is accumulated
-- **Real-time Updates**: Per-second A/B/C TCP messages to ESP32 for live display with optional Serial sync
+- **Vehicle Detection & Tracking**: Utilizes YOLOv8 and SORT strategies to identify and track vehicles.
+- **Dynamic Signal Timing**: Adjusts green light duration based on a 5-second sliding average of vehicle density.
+- **Safety Constraints**: Enforces green light duration to remain within a configured range (e.g., 30–90 seconds).
+- **Embedded Integration**: Communicates phase status and countdowns to an ESP32 microcontroller via TCP for real-time display.
 
 ---
 
 ## Table of Contents
 - [Repository Structure](#repository-structure)
-- [Setup and Run](#setup-and-run)
-- [Configure Inputs and ROI](#configure-inputs-and-roi)
-- [How It Works](#how-it-works)
-- [ESP32: Wiring & TCP](#esp32-wiring--tcp)
+- [Setup and Installation](#setup-and-installation)
+- [Configuration](#configuration)
+- [System Architecture](#system-architecture)
+- [Hardware Integration](#hardware-integration)
 - [Troubleshooting](#troubleshooting)
 - [Images](#images)
 - [Video](#video)
@@ -40,173 +38,153 @@ We use OpenCV + YOLOv8 to detect and track vehicles inside a region of interest 
 
 ```
 CEP_Dynamic_Traffic_Signal/
-├── main.py                          # Main video analytics + timing controller
-├── sort.py                          # SORT tracker implementation
-├── mask.png                         # ROI mask (auto-resized to frame size)
-├── video.mp4                        # Sample/input traffic video
-├── yolov8l.pt / yolov8n.pt         # YOLO models (defaults to yolov8l.pt)
-├── requirements.txt                 # Python dependencies
-├── env.sample                       # Copy to .env for environment overrides
-├── esp32_traffic_controller/
-│   └── tcp_test_sender.py          # TCP tester for A/B/C messages
-└── future_scope/
-    ├── config.json                  # Runtime configuration (edit this)
-    ├── config.example.json          # Configuration template
-    ├── config_loader.py             # Configuration loader helper
-    └── README.md                    # Configuration system documentation
+├── assets/                  # Media files and model weights
+│   ├── video.mp4            # Sample input video
+│   ├── mask.png             # ROI mask image
+│   └── yolov8l.pt           # YOLOv8 model weights
+├── firmware/                # ESP32 microcontroller firmware
+│   └── tcp_test_sender.py   # Utility for testing TCP communication
+├── simulations/             # Additional simulation scripts
+├── src/                     # Source code
+│   ├── main.py              # Main application entry point
+│   ├── sort.py              # SORT tracking implementation
+│   └── future_scope/        # Configuration management
+├── env.sample               # Environment variable template
+├── requirements.txt         # Python dependencies
+└── README.md                # Project documentation
 ```
+
+[Back to Top](#cep-dynamic-traffic-signal-system)
 
 ---
 
-## Setup and Run
+## Setup and Installation
 
-### Windows PowerShell
+### Prerequisites
+- Python 3.10+
+- ESP32 microcontroller (optional, for hardware integration)
+- Windows OS (recommended for PowerShell scripts)
 
-```powershell
-# 1) (Optional) Create virtual environment
-python -m venv myenv
-myenv\Scripts\Activate.ps1
+### Installation Steps
 
-# 2) Install dependencies
-pip install -r requirements.txt
+1.  **Clone the Repository**
+    ```bash
+    git clone <repository_url>
+    cd CEP_Dynamic_Traffic_Signal
+    ```
 
-# 3) (Optional) Configure environment variables
-copy env.sample .env
-notepad .env   # Set ESP32_IP and ESP32_PORT if using environment overrides
+2.  **Create a Virtual Environment**
+    ```powershell
+    python -m venv myenv
+    myenv\Scripts\Activate.ps1
+    ```
 
-# 4) Run the application
-python main.py
-```
+3.  **Install Dependencies**
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-**Controls**: Press `q` in the OpenCV window to quit.
+4.  **Environment Configuration**
+    Copy the sample environment file and configure it if necessary:
+    ```powershell
+    copy env.sample .env
+    ```
+    Edit `.env` to specify your ESP32 IP address and port if they differ from the defaults.
+
+5.  **Run the Application**
+    ```powershell
+    python src/main.py
+    ```
+    Press `q` in the application window to exit.
+
+[Back to Top](#cep-dynamic-traffic-signal-system)
 
 ---
 
-## Configure Inputs and ROI
+## Configuration
 
-You can configure the system without editing code using `future_scope/config.json`:
+<details>
+<summary><strong>Click to expand Configuration Details</strong></summary>
 
-### Configuration Options
+The system can be configured via `src/future_scope/config.json`. Key configuration options include:
 
-- **`video_path`**: Path to your input video file (or keep `video.mp4` in the root)
-- **`mask_path`**: Path to your mask image (will be resized to match frame size)
-- **`polygon_points`**: List of `[x, y]` vertices defining the ROI (minimum 3 points)
-- **`serial`**: Serial port configuration (port, baud rate, timeout)
-- **`esp32`**: ESP32 TCP connection settings (IP address and port)
+-   **Video Source**: Path to the input video file.
+-   **ROI Mask**: Path to the mask image defining the detection zone.
+-   **Polygon Points**: Vertices coordinates for the specific Region of Interest.
+-   **Communication**: Serial port settings and ESP32 TCP connection details.
 
-### Example Configuration
-
+Example `config.json` snippet:
 ```json
 {
-  "video_path": "D:/Projects/CEP_Dynamic_Traffic_Signal/video.mp4",
-  "mask_path": "D:/Projects/CEP_Dynamic_Traffic_Signal/mask.png",
-  "polygon_points": [[589, 206], [417, 539], [1275, 539], [874, 209]],
-  "serial": {
-    "port": "COM3",
-    "baud": 115200,
-    "timeout": 0.1
-  },
+  "video_path": "assets/video.mp4",
   "esp32": {
     "ip": "10.84.30.1",
     "port": 80
   }
 }
 ```
+</details>
 
-### Setting Polygon Points (ROI)
-
-- Provide at least **3 points** in clockwise or counter-clockwise order
-- Each point is `[x, y]` in image pixel coordinates
-- Floats are allowed and will be cast to integers
-- Example quadrilateral: `[[100, 200], [150, 500], [800, 520], [600, 220]]`
-
-### Path Configuration
-
-- **Windows paths**: Use forward slashes (`D:/data/video.mp4`) or escape backslashes (`D:\\data\\video.mp4`)
-- Paths can be absolute or relative
-- The mask image will be automatically resized to match the video frame size
-
-### Validation and Fallbacks
-
-If `future_scope/config.json` is missing or malformed, the program uses built-in defaults. If `polygon_points` is invalid (e.g., fewer than 3 points), the default polygon is used.
-
-**Tip**: After changing `config.json`, restart the program to load the new settings.
+[Back to Top](#cep-dynamic-traffic-signal-system)
 
 ---
 
-## How It Works
+## System Architecture
 
 ### Processing Pipeline
 
-1. **Frame Capture**: Frames are read from the input video and `mask.png` is applied to isolate the ROI
-2. **Detection**: YOLOv8 detects vehicles within the masked region
-3. **Tracking**: SORT tracks detected vehicles for stability across frames
-4. **Density Calculation**: Intersection area of tracked bounding boxes with the polygon approximates occupancy density
-5. **Dynamic Timing**: A 5-second sliding average density feeds the timing controller
+```mermaid
+graph TD
+    A[Video Input] --> B[Applied ROI Mask]
+    B --> C{Detect Vehicles}
+    C -->|YOLOv8| D[Object Detection]
+    D --> E{Track Objects}
+    E -->|SORT| F[Vehicle Tracking]
+    F --> G[Calculate Density]
+    G --> H[Dynamic Timing Controller]
+    H --> I[Adjust Signal Duration]
+    I --> J[Send to ESP32]
+```
 
-### Dynamic Timing Rules
+### Communication Protocol
+The system sends ASCII-encoded messages to the ESP32:
+-   `A{seconds}`: RED phase duration.
+-   `B{seconds}`: YELLOW phase duration.
+-   `C{seconds}`: GREEN phase duration.
 
-- **Initial green**: 90 seconds
-- **First 10 seconds**: Observation only (no timing adjustments)
-- **Every 5 seconds**: Adjust remaining green time based on density:
-  - **Density < 0.3**: Reduce remaining green by 40%
-  - **Density 0.4–0.6**: Reduce remaining green by 25%
-  - **Density > 0.6**: No reduction
-- **Bounds**: Green is clamped between 30–90 seconds
-- **Tracking**: Total time saved is accumulated
-
-### TCP Communication Protocol
-
-Per-second messages are sent to the ESP32 using an A/B/C phase code:
-
-| Phase | Format | Example |
-|-------|--------|---------|
-| **GREEN** | `C{seconds_left}` | `C42` |
-| **YELLOW** | `B{seconds_left}` | `B5` |
-| **RED** | `A{seconds_left}` | `A60` |
-
-On phase changes or green adjustments, durations are also sent over Serial (if available).
+[Back to Top](#cep-dynamic-traffic-signal-system)
 
 ---
 
-## ESP32: Wiring & TCP
+## Hardware Integration
 
-### LED Connections
+### ESP32 Setup
+1.  Connect LEDs to the ESP32 GPIO pins (ensure current limiting resistors are used).
+2.  Flash the firmware located in the `firmware/` directory using the Arduino IDE or PlatformIO.
+3.  Verify the ESP32 is on the same network as the host computer.
 
-- Connect Red/Yellow/Green LEDs to your chosen GPIO pins via 220–330Ω resistors
-- Connect LED cathodes to GND
-- Exact GPIO pins are defined in your ESP32 firmware (update as needed)
+### Testing Connectivity
+Use the provided utility to test TCP connectivity:
+```powershell
+python firmware/tcp_test_sender.py
+```
 
-**Power Notes**:
-- Ensure common GND between ESP32 and LEDs
-- Use appropriate resistors to limit LED current
-
-### Flashing the ESP32
-
-1. Open `esp32_traffic_controller.ino` in Arduino IDE or PlatformIO
-2. Select your board (e.g., "ESP32 Dev Module")
-3. Select the correct COM port
-4. Upload the sketch
-5. Start `python main.py` and watch the countdown update live via A/B/C messages
-
-### Testing
-
-Use `esp32_traffic_controller/tcp_test_sender.py` to manually send `A60/B5/C42` messages and validate your ESP32 parser.
+[Back to Top](#cep-dynamic-traffic-signal-system)
 
 ---
 
 ## Troubleshooting
 
-### TCP / LED Issues
+<details>
+<summary><strong>Click to expand Troubleshooting Guide</strong></summary>
 
-- **No updates on display**: 
-  - Confirm PC and ESP32 are on the same Wi-Fi network
-  - Ping the `ESP32_IP` to verify connectivity
-  - Check if firewall is blocking Python (allow outbound connections to `ESP32_PORT`)
-- **Testing**: Use `tcp_test_sender.py` to manually send `A60/B5/C42` and validate the ESP32 parser
+-   **Connection Refused**: Ensure the ESP32 IP address is correct and the device is powered on. Check firewall settings to allow outbound TCP connections.
+-   **Performance Issues**: If inference is slow, switch to a lighter model (e.g., `yolov8n.pt`) or reduce the video resolution.
+-   **Incorrect Detection**: Verify that `mask.png` aligns correctly with the video frame and that `polygon_points` in the configuration accurately define the traffic lanes.
 
-### Performance / ROI Issues
+</details>
 
+<<<<<<< HEAD
 - **Slow inference**: Use `yolov8n.pt` for faster processing
 - **High CPU usage**: Lower video resolution or skip frames
 - **ROI mismatch**: 
@@ -244,10 +222,14 @@ https://github.com/user-attachments/assets/41fd3e41-b301-4d04-ba95-9b60ef2c781a
 - **Configuration Formats**: Optional YAML/TOML configs with profile selection (e.g., `intersection_A.json` vs `intersection_B.json`)
 - **Advanced Analytics**: Historical data logging and traffic pattern analysis
 - **Multi-intersection Coordination**: Synchronize timing across multiple intersections
+=======
+[Back to Top](#cep-dynamic-traffic-signal-system)
+>>>>>>> 56bf2a6 (cleanup project structure and remove invalid path)
 
 ---
 
 ## License
+<<<<<<< HEAD
 
 For academic/educational use only. YOLO models are subject to their respective licenses from Ultralytics.
 
@@ -262,3 +244,6 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 ## Contact
 
 For questions or support, please open an issue in the repository.
+=======
+This project is for educational and academic purposes. YOLOv8 is subject to Ultralytics' licensing terms.
+>>>>>>> 56bf2a6 (cleanup project structure and remove invalid path)

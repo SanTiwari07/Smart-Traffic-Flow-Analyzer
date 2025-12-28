@@ -24,11 +24,13 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), "future_scope", "config.js
 _cfg = load_runtime_config(CONFIG_PATH)
 
 # Video source
-_video_path_default = "D:/Projects/CEP_Dynamic_Traffic_Signal/video.mp4"
+_base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_video_path_default = os.path.join(_base_dir, "assets", "video.mp4")
 video_path = get_config_value(_cfg, ["video_path"], _video_path_default)
 cap = cv2.VideoCapture(video_path)
 
-model = YOLO("yolov8l.pt")
+model_path = os.path.join(_base_dir, "assets", "yolov8l.pt")
+model = YOLO(model_path)
 
 # Complete YOLO class names (COCO dataset)
 classNames = ["person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
@@ -98,7 +100,7 @@ def send_command_to_esp32(command: str) -> bool:
         print(f"TCP send failed to {ESP32_IP}:{ESP32_PORT} -> {command} ({e})")
         return False
 
-_mask_path_default = "D:/Projects/CEP_Dynamic_Traffic_Signal/mask.png"
+_mask_path_default = os.path.join(_base_dir, "assets", "mask.png")
 mask_path = get_config_value(_cfg, ["mask_path"], _mask_path_default)
 mask = cv2.imread(mask_path)
 
